@@ -48,7 +48,8 @@ export default function Chat() {
     // Fetch conversations
     const fetchConversations = async () => {
         try {
-            const res = await fetch('/api/conversations');
+            const res = await fetch('/api/conversations/');
+
             if (res.ok) {
                 const data = await res.json();
                 setConversations(data.conversations || []);
@@ -207,14 +208,17 @@ export default function Chat() {
                                     fullContent += data.text;
                                     setStreamingContent(fullContent);
                                 }
-                                if (data.done && data.conversationId) {
-                                    console.log(`[Chat] Received conversationId from backend: ${data.conversationId}`);
+                                if (data.conversationId && data.conversationId !== conversationId) {
+                                    console.log(`[Chat] Received conversationId: ${data.conversationId}`);
                                     setConversationId(data.conversationId);
-                                    console.log(`[Chat] Set conversationId state to: ${data.conversationId}`);
-                                    setSearchParams({ conversationId: data.conversationId });
-                                    console.log(`[Chat] Updated URL with conversationId: ${data.conversationId}`);
-                                    fetchConversations(); // Refresh sidebar list
+                                    setSearchParams({ conversationId: data.conversationId }, { replace: true });
+                                    fetchConversations();
                                 }
+                                if (data.done) {
+                                    console.log(`[Chat] Stream done`);
+                                    fetchConversations();
+                                }
+
                             } catch {
                                 // Ignore parse errors
                             }
@@ -323,7 +327,8 @@ export default function Chat() {
         }
     };
 
-    if (status === "loading" || loading) {
+    if (loading) {
+
         return (
             <div className={styles.loading}>
                 <div className="spinner" />
@@ -351,9 +356,10 @@ export default function Chat() {
                         const conversation = conversations.find(c => c.id === convId);
                         if (conversation) {
                             // Navigate to the character's chat page with the conversation ID
-                            navigate(`/chat/${conversation.character.id}?conversationId=${convId}`);
+                            navigate(`/characters/${conversation.character.id}/chat?conversationId=${convId}`);
                         }
                     }}
+
                     onConversationDelete={() => {
                         fetchConversations();
                     }}
@@ -379,6 +385,9 @@ export default function Chat() {
                     >
                         <option value="gemini-2.5-flash">⚡ 2.5 Flash (300/일)</option>
                         <option value="gemini-3-flash">🚀 3.0 Flash (30/일)</option>
+                        <option value="exaone-236b">🧠 EXAONE 236B (1000/일)</option>
+
+
                     </select>
                     <button
                         onClick={handleGenerateImage}

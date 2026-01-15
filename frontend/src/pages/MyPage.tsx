@@ -45,7 +45,22 @@ export default function MyPage() {
     const [showNameChangeWarning, setShowNameChangeWarning] = useState(false);
     const [showNameInput, setShowNameInput] = useState(false);
     const [newName, setNewName] = useState("");
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        onConfirm: () => void;
+        title: string;
+        message: any;
+        confirmText?: string;
+        cancelText?: string;
+        type?: 'danger' | 'warning' | 'info';
+    }>({
+        isOpen: false,
+        onConfirm: () => { },
+        title: '',
+        message: ''
+    });
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const navigate = useNavigate();
 
@@ -506,6 +521,7 @@ export default function MyPage() {
                                                         setAlertModal({
                                                             isOpen: true,
                                                             type: 'success',
+                                                            title: '삭제 완료',
                                                             message: '캐릭터가 삭제되었습니다.',
                                                         });
                                                         fetchMyCharacters(); // Refresh list
@@ -513,6 +529,7 @@ export default function MyPage() {
                                                         setAlertModal({
                                                             isOpen: true,
                                                             type: 'error',
+                                                            title: '삭제 실패',
                                                             message: data.error || '캐릭터 삭제에 실패했습니다.',
                                                         });
                                                     }
@@ -520,16 +537,19 @@ export default function MyPage() {
                                                     setAlertModal({
                                                         isOpen: true,
                                                         type: 'error',
+                                                        title: '오류',
                                                         message: '캐릭터 삭제 중 오류가 발생했습니다.',
                                                     });
                                                 }
-                                                setConfirmModal({ isOpen: false, onConfirm: () => { } });
+                                                setConfirmModal(prev => ({ ...prev, isOpen: false }));
                                             },
                                             title: '캐릭터 삭제',
                                             message: `"${char.name}" 캐릭터를 삭제하시겠습니까? 삭제된 캐릭터는 복구할 수 없습니다.`,
                                             confirmText: '삭제',
                                             cancelText: '취소',
+                                            type: 'danger',
                                         });
+
                                     }}
                                     className="absolute top-2 right-2 p-1.5 bg-red-600/80 hover:bg-red-700 rounded-md transition-all opacity-0 group-hover:opacity-100 z-10"
                                     title="캐릭터 삭제"
@@ -650,6 +670,18 @@ export default function MyPage() {
                 confirmText="변경"
                 cancelText="취소"
             />
+            {/* 공통 확인 모달 */}
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                confirmText={confirmModal.confirmText}
+                cancelText={confirmModal.cancelText}
+                type={confirmModal.type}
+            />
         </div>
+
     );
 }

@@ -173,8 +173,10 @@ export default function Register() {
                 isOpen={showWelcomeModal}
                 onClose={() => {
                     setShowWelcomeModal(false);
-                    navigate("/login?registered=true");
+                    navigate("/");
+                    window.location.reload();
                 }}
+
                 type="success"
                 title="회원가입 완료"
                 message={`환영합니다 ${registeredName}님!\n키라키라의 멤버가 되신 것을 축하드립니다.`}

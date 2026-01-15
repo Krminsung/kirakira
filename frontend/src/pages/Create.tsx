@@ -172,8 +172,9 @@ export default function Create() {
         setError("");
 
         try {
-            const url = isEditMode ? `/api/characters/${editId}` : "/api/characters";
+            const url = isEditMode ? `/api/characters/${editId}/` : "/api/characters/";
             const method = isEditMode ? "PUT" : "POST";
+
 
             const res = await fetch(url, {
                 method,

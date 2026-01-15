@@ -76,7 +76,8 @@ export default function CharacterDetail() {
         );
     }
 
-    const isOwner = user?.id === character.creator.id;
+    const isOwner = user?.id === character.creator?.id;
+
 
     return (
         <div className={styles.page}>
@@ -98,8 +99,9 @@ export default function CharacterDetail() {
                         <h1 className={styles.name}>{character.name}</h1>
                         <div className={styles.meta}>
                             <span className={styles.creator}>
-                                by {character.creator.name}
+                                by {character.creator?.name || 'Unknown'}
                             </span>
+
                             <span className={styles.stats}>💬 {character.chatCount}</span>
                             <span className={styles.stats}>❤️ {character.likeCount}</span>
                         </div>

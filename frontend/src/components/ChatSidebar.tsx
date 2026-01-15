@@ -38,11 +38,13 @@ export default function ChatSidebar({
 }: ChatSidebarProps) {
     const navigate = useNavigate();
     const [deleteModal, setDeleteModal] = useState<{ open: boolean; conversationId?: string }>({ open: false });
-    const [alertModal, setAlertModal] = useState<{ open: boolean; type: 'success' | 'error'; message: string }>({
+    const [alertModal, setAlertModal] = useState<{ open: boolean; type: 'success' | 'error'; title: string; message: string }>({
         open: false,
         type: 'success',
+        title: '',
         message: '',
     });
+
 
     const handleDelete = async () => {
         if (!deleteModal.conversationId) return;
@@ -58,23 +60,29 @@ export default function ChatSidebar({
                 setAlertModal({
                     open: true,
                     type: 'success',
+                    title: '성공',
                     message: '대화가 삭제되었습니다.',
                 });
+
                 onConversationDelete(deleteModal.conversationId);
                 onRefresh();
             } else {
                 setAlertModal({
                     open: true,
                     type: 'error',
+                    title: '실패',
                     message: data.error || '대화 삭제에 실패했습니다.',
                 });
+
             }
         } catch (error) {
             setAlertModal({
                 open: true,
                 type: 'error',
+                title: '오류',
                 message: '대화 삭제 중 오류가 발생했습니다.',
             });
+
         }
 
         setDeleteModal({ open: false });
@@ -132,7 +140,7 @@ export default function ChatSidebar({
 
                             {/* Character Info */}
                             <div className="flex items-center gap-2 mb-2 pr-8">
-                                {conv.character.profileImage ? (
+                                {conv.character?.profileImage ? (
                                     <img
                                         src={conv.character.profileImage}
                                         alt={conv.character.name}
@@ -140,25 +148,28 @@ export default function ChatSidebar({
                                     />
                                 ) : (
                                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-pink-500 flex items-center justify-center text-xs font-bold">
-                                        {conv.character.name[0]?.toUpperCase()}
+                                        {conv.character?.name?.[0]?.toUpperCase() || '?'}
                                     </div>
                                 )}
+
                                 <div className="flex-1 min-w-0">
                                     <h3 className="text-sm font-semibold text-white truncate">{conv.title}</h3>
                                     <p className="text-xs text-gray-400 truncate">{conv.character.name}</p>
                                 </div>
                             </div>
 
-                            {/* Remaining Time */}
-                            <div className="text-xs">
-                                {conv.remainingTime.expired ? (
-                                    <span className="text-red-400">곧 삭제됩니다</span>
-                                ) : (
-                                    <span className="text-gray-500">
-                                        {conv.remainingTime.hours}시간 {conv.remainingTime.minutes}분 후 삭제
-                                    </span>
-                                )}
-                            </div>
+                            {conv.remainingTime && (
+                                <div className="text-xs">
+                                    {conv.remainingTime.expired ? (
+                                        <span className="text-red-400">곧 삭제됩니다</span>
+                                    ) : (
+                                        <span className="text-gray-500">
+                                            {conv.remainingTime.hours}시간 {conv.remainingTime.minutes}분 후 삭제
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+
                         </div>
                     ))
                 )}
@@ -185,8 +196,10 @@ export default function ChatSidebar({
                 isOpen={alertModal.open}
                 onClose={() => setAlertModal({ ...alertModal, open: false })}
                 type={alertModal.type}
+                title={alertModal.title}
                 message={alertModal.message}
             />
+
         </div>
     );
 }

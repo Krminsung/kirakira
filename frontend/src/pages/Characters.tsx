@@ -6,11 +6,13 @@ interface Character {
     id: string;
     name: string;
     description: string;
-    avatar?: string;
-    isPublic: boolean;
+    profileImage?: string;
+    visibility: string;
     createdAt: string;
+
     chatCount?: number;
 }
+
 
 export default function Characters() {
     const [characters, setCharacters] = useState<Character[]>([]);
@@ -100,13 +102,14 @@ export default function Characters() {
                             className="bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-indigo-500/50 transition-all cursor-pointer group"
                         >
                             <div className="flex items-start gap-4 mb-4">
-                                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-pink-500 flex items-center justify-center text-2xl shrink-0">
-                                    {character.avatar ? (
-                                        <img src={character.avatar} alt={character.name} className="w-full h-full rounded-full object-cover" />
+                                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-pink-500 flex items-center justify-center text-2xl shrink-0 overflow-hidden">
+                                    {character.profileImage ? (
+                                        <img src={character.profileImage} alt={character.name} className="w-full h-full object-cover" />
                                     ) : (
                                         <span>🤖</span>
                                     )}
                                 </div>
+
                                 <div className="flex-1 min-w-0">
                                     <h3 className="text-xl font-bold text-white mb-1 truncate">{character.name}</h3>
                                     <p className="text-gray-400 text-sm line-clamp-2 mb-2">{character.description}</p>

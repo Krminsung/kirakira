@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: "0.0.0.0",
-    port: 5173,
-    allowedHosts: ['localhost', 'kirakira.cloudkakao.store'],
+    port: 3003,
+    allowedHosts: ['localhost', 'kirakira.cloudkakao.store', 'kirakira.cukee.world'],
   }
 })
