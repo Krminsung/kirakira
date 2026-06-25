@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str | None = None
     FRIENDLI_TOKEN: str | None = None
     HUGGING_FACE_TOKEN: str | None = None
+    CUKEE_API_TOKEN: str | None = None
 
 
     # Google OAuth

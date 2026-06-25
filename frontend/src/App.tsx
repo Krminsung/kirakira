@@ -7,6 +7,7 @@ import Chat from './pages/Chat';
 import CharacterDetail from './pages/CharacterDetail';
 import MyPage from './pages/MyPage';
 import Characters from './pages/Characters';
+import RechargePage from './pages/RechargePage';
 import Layout from './components/Layout'; // We need to create this
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
       <Route path="/characters/:id/chat" element={<Layout><Chat /></Layout>} />
       <Route path="/chat/:id" element={<Layout><Chat /></Layout>} />
       <Route path="/my" element={<Layout><MyPage /></Layout>} />
+      <Route path="/recharge" element={<Layout><RechargePage /></Layout>} />
     </Routes>
   );
 }

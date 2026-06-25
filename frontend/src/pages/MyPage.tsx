@@ -2,12 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ConfirmModal from '../components/ConfirmModal';
 import AlertModal from '../components/AlertModal';
-
-interface UsageData {
-    used: number;
-    limit: number;
-    remaining: number;
-}
+import CreditDisplay from '../components/CreditDisplay';
 
 interface UserInfo {
     userId: string;
@@ -30,10 +25,8 @@ interface Character {
 
 export default function MyPage() {
     const [user, setUser] = useState<UserInfo | null>(null);
-    const [usage, setUsage] = useState<Record<string, UsageData> | null>(null);
     const [characters, setCharacters] = useState<Character[]>([]);
     const [loading, setLoading] = useState(true);
-    const [usageLoading, setUsageLoading] = useState(true);
     const [charactersLoading, setCharactersLoading] = useState(true);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [alertModal, setAlertModal] = useState<{ isOpen: boolean; type: 'success' | 'error' | 'warning'; title: string; message: string }>({
@@ -66,7 +59,6 @@ export default function MyPage() {
 
     useEffect(() => {
         fetchUserInfo();
-        fetchUsage();
         fetchMyCharacters();
     }, []);
 
@@ -84,20 +76,6 @@ export default function MyPage() {
             navigate('/login');
         } finally {
             setLoading(false);
-        }
-    };
-
-    const fetchUsage = async () => {
-        try {
-            const res = await fetch('/api/usage');
-            if (res.ok) {
-                const data = await res.json();
-                setUsage(data.usage);
-            }
-        } catch (error) {
-            console.error('Failed to fetch usage:', error);
-        } finally {
-            setUsageLoading(false);
         }
     };
 
@@ -281,16 +259,6 @@ export default function MyPage() {
         reader.readAsDataURL(file);
     };
 
-    const getUsagePercentage = (data: UsageData) => {
-        return (data.used / data.limit) * 100;
-    };
-
-    const getProgressColor = (percentage: number) => {
-        if (percentage >= 90) return 'from-red-500 to-pink-500';
-        if (percentage >= 70) return 'from-yellow-500 to-orange-500';
-        return 'from-indigo-500 to-purple-500';
-    };
-
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
@@ -385,76 +353,15 @@ export default function MyPage() {
                 </div>
             </div>
 
-            {/* API Usage Stats */}
-            <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-4 rounded-xl border border-gray-700/50 mb-4 shadow-xl">
-                <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+            {/* Credit System */}
+            <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-6 rounded-xl border border-gray-700/50 mb-4 shadow-xl">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                     <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    오늘의 API 사용량
-                    <span className="text-xs font-normal text-gray-400 ml-auto">매일 자정(KST) 초기화</span>
+                    키라 크레딧
                 </h3>
-
-                {usageLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                        <div className="w-6 h-6 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                        <span className="ml-2 text-sm text-gray-400">로딩 중...</span>
-                    </div>
-                ) : usage ? (
-                    <div className="space-y-3">
-                        {Object.entries(usage).map(([model, data]) => {
-                            const percentage = getUsagePercentage(data);
-                            const progressColor = getProgressColor(percentage);
-
-                            return (
-                                <div key={model} className="bg-gray-800/30 p-3 rounded-lg border border-gray-700/20">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <div>
-                                            <h4 className="text-sm font-semibold text-white">{model}</h4>
-                                            <p className="text-xs text-gray-400">
-                                                {data.used.toLocaleString()} / {data.limit.toLocaleString()} 요청
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className={`text-lg font-bold bg-gradient-to-r ${progressColor} bg-clip-text text-transparent`}>
-                                                {percentage.toFixed(0)}%
-                                            </div>
-                                            <div className="text-xs text-gray-400">
-                                                남은: {data.remaining.toLocaleString()}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Progress Bar */}
-                                    <div className="relative h-1.5 bg-gray-700/50 rounded-full overflow-hidden mb-2">
-                                        <div
-                                            className={`h-1.5 bg-gradient-to-r ${progressColor} transition-all duration-500 rounded-full`}
-                                            style={{ width: `${Math.min(percentage, 100)}%` }}
-                                        />
-                                    </div>
-
-                                    {percentage >= 90 && (
-                                        <div className="flex items-center gap-1.5 text-red-400 text-xs">
-                                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                            </svg>
-                                            <span>한도의 90% 이상 사용</span>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div className="text-center py-8">
-                        <div className="text-gray-500 mb-2">
-                            <svg className="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                            </svg>
-                            <p className="text-sm text-gray-400">사용량 정보를 불러올 수 없습니다</p>
-                        </div>
-                    </div>
-                )}
+                <CreditDisplay />
             </div>
 
             {/* 내 캐릭터 목록 */}

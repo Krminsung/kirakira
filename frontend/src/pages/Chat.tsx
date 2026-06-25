@@ -32,11 +32,11 @@ export default function Chat() {
     const [conversationId, setConversationId] = useState<string | null>(searchParams.get("conversationId"));
     const [streamingContent, setStreamingContent] = useState("");
     const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash");
-    const [usageLimitError, setUsageLimitError] = useState<string | null>(null);
+    const [creditError, setCreditError] = useState<string | null>(null);
 
     // Conversation sidebar state
     const [conversations, setConversations] = useState<any[]>([]);
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen] = useState(true);
 
     // Sync conversationId with URL params when they change
     useEffect(() => {
@@ -162,7 +162,7 @@ export default function Chat() {
         setMessages((prev) => [...prev, newUserMessage]);
 
         try {
-            const res = await fetch("/api/chat", {
+            const res = await fetch("/api/chat/", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -177,16 +177,16 @@ export default function Chat() {
 
             if (!res.ok) {
                 const errorData = await res.json();
-                if (errorData.usageLimitExceeded) {
-                    setUsageLimitError(errorData.error);
-                    setMessages((prev) => prev.filter(m => m.id !== newUserMessage.id));
+                if (res.status === 402) {
+                    setCreditError(errorData.detail || "Insufficient credits");
+                    setMessages((prev) => prev.filter((m: any) => m.id !== newUserMessage.id));
                     setSending(false);
                     return;
                 }
-                throw new Error(errorData.error || "Failed to send message");
+                throw new Error(errorData.detail || errorData.error || "Failed to send message");
             }
 
-            setUsageLimitError(null);
+            setCreditError(null);
 
             const reader = res.body?.getReader();
             const decoder = new TextDecoder();
@@ -380,14 +380,13 @@ export default function Chat() {
                     <select
                         className={styles.modelSelect}
                         value={selectedModel}
-                        onChange={(e) => setSelectedModel(e.target.value)}
+                        onChange={(e: any) => setSelectedModel(e.target.value)}
                         disabled={sending}
                     >
-                        <option value="gemini-2.5-flash">⚡ 2.5 Flash (300/일)</option>
-                        <option value="gemini-3-flash">🚀 3.0 Flash (30/일)</option>
-                        <option value="exaone-236b">🧠 EXAONE 236B (1000/일)</option>
-
-
+                        <option value="gemini-2.5-flash">⚡ 2.5 Flash (3💎)</option>
+                        <option value="gemini-3-flash">🚀 3.0 Flash (5💎)</option>
+                        <option value="exaone-236b">🧠 EXAONE 236B (1💎)</option>
+                        <option value="cukee-ai">🍪 Cukee AI (1💎)</option>
                     </select>
                     <button
                         onClick={handleGenerateImage}
@@ -399,9 +398,9 @@ export default function Chat() {
                     </button>
                 </div>
 
-                {usageLimitError && (
+                {creditError && (
                     <div className={styles.usageError}>
-                        ⚠️ {usageLimitError}
+                        ⚠️ {creditError}
                     </div>
                 )}
 

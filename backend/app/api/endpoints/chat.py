@@ -24,48 +24,40 @@ async def chat_stream(
     """
     Chat with character (Streaming SSE).
     """
-    # 1. Check Daily Limits (KST)
+    # 1. Check Credits and Deduct
+    from app.services import credit_system
+
     selected_model = message_in.model if message_in.model else "gemini-2.5-flash"
-    
-    # Normalize model name for limit check
-    if "EXAONE" in selected_model:
-        limit_key = "exaone-236b"
-        daily_limit = 1000
-    elif "3" in selected_model and "flash" in selected_model:
 
-        limit_key = "gemini-3-flash"
-        daily_limit = 30
-    else:
-        limit_key = "gemini-2.5-flash"
-        daily_limit = 300
+    # Get credit cost for this model
+    credit_cost = credit_system.get_model_cost(selected_model)
 
-
-    from app.utils.date import get_kst_today_start
-    from app.models.usage import ApiUsageLog
-    
-    today_kst = get_kst_today_start()
-    
-    # Check usage count
-    limit_query = select(func.count()).select_from(ApiUsageLog).where(
-        ApiUsageLog.user_id == current_user.id,
-        ApiUsageLog.model == limit_key,
-        ApiUsageLog.used_at >= today_kst
-    )
-    limit_result = await session.execute(limit_query)
-    usage_count = limit_result.scalar() or 0
-    
-    if usage_count >= daily_limit:
-         raise HTTPException(
-            status_code=429, 
-            detail=f"Daily usage limit exceeded ({limit_key}: {daily_limit})"
+    # Check if user has sufficient credits
+    has_credits = await credit_system.check_sufficient_credits(session, current_user.id, credit_cost)
+    if not has_credits:
+        current_balance = await credit_system.get_user_balance(session, current_user.id)
+        raise HTTPException(
+            status_code=402,  # Payment Required
+            detail=f"Insufficient credits. Need {credit_cost} kira, have {current_balance} kira"
         )
+
+    # Deduct credits immediately
+    deduct_result = await credit_system.deduct_credits(
+        session,
+        current_user.id,
+        credit_cost,
+        f"채팅 메시지 ({selected_model})"
+    )
+
+    if not deduct_result["success"]:
+        raise HTTPException(status_code=402, detail=deduct_result["message"])
 
     # 2. Conversation Setup
     conversation_id = message_in.conversation_id
     character_id = message_in.character_id
     content = message_in.message or message_in.content
 
-    
+
     if not character_id and not conversation_id:
         raise HTTPException(status_code=400, detail="Character ID or Conversation ID required")
 
@@ -79,11 +71,11 @@ async def chat_stream(
            Conversation.user_id == current_user.id
         ))
         conversation = result.scalars().first()
-    
+
     if not conversation:
         if not character_id:
              raise HTTPException(status_code=400, detail="Character ID required for new conversation")
-             
+
         # Create new conversation
         conversation = Conversation(
             user_id=current_user.id,
@@ -117,7 +109,7 @@ async def chat_stream(
     # Fetch Character details
     result = await session.execute(select(Character).where(Character.id == conversation.character_id))
     character = result.scalars().first()
-    
+
     # Parse Example Dialogs if JSON
     example_dialogs = character.example_dialogs
     formatted_dialogs = ""
@@ -136,14 +128,14 @@ async def chat_stream(
     You are roleplaying as {character.name}.
     Description: {character.description}
     Personality: {character.personality}
-    
+
     Context:
     {character.secret if character.secret else ""}
     {character.worldview.description if character.worldview else ""}
-    
+
     Tone/Style:
     {formatted_dialogs}
-    
+
     Reply naturally as the character. Do not break character.
     """
 
@@ -152,25 +144,24 @@ async def chat_stream(
         # First, send the conversation ID
         init_data = json.dumps({"conversationId": conversation_id})
         yield f"data: {init_data}\n\n"
-        
+
         full_response = ""
         try:
             # Call AI Service with Model
-            model_slug = limit_key # Log the standardized slug
+            model_slug = selected_model # Log the standardized slug
             async for chunk in get_chat_response([{"role": "user", "content": content}], system_instruction, selected_model):
                 full_response += chunk
                 data = json.dumps({"text": chunk})
                 yield f"data: {data}\n\n"
-                
+
             # Signal Done with conversation ID for frontend sync
             done_data = json.dumps({"done": True, "conversationId": conversation_id})
             yield f"data: {done_data}\n\n"
-            
-            # 5. Save AI Message & Usage
+
+            # 5. Save AI Message
             if full_response:
                 from app.db.session import AsyncSessionLocal
-                from app.models.usage import ApiUsageLog
-                
+
                 async with AsyncSessionLocal() as session_save:
                      # Save Message
                      ai_msg = Message(
@@ -179,14 +170,6 @@ async def chat_stream(
                         conversation_id=conversation_id
                      )
                      session_save.add(ai_msg)
-                     
-                     # Log Usage
-                     usage_log = ApiUsageLog(
-                         user_id=current_user.id,
-                         model=model_slug
-                     )
-                     session_save.add(usage_log)
-                     
                      await session_save.commit()
 
 
@@ -213,7 +196,7 @@ async def read_chat_messages(
     conversation = result.scalars().first()
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
-        
+
     # Validated: Fetch Messages
     result = await session.execute(
         select(Message)
@@ -243,7 +226,7 @@ async def delete_chat_message(
     message = result.scalars().first()
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-        
+
     await session.delete(message)
     await session.commit()
     return {"status": "success"}
@@ -263,28 +246,28 @@ async def generate_chat_image(
     from app.services.huggingface import generate_image, save_image_locally
     from app.models.chat import Message
     import uuid
-    
+
     # Construct prompt from messages
     # Use the last few messages to form context, plus character name
     last_msg = image_in.messages[-1].content if image_in.messages else ""
-    
+
     if not last_msg:
         raise HTTPException(status_code=400, detail="No message content to visualize")
-        
+
     conversation_id = image_in.conversation_id
 
-    
+
     try:
         # 1. Fetch character context from DB
-        character_context = f"{image_in.character_name} in a scene" 
-        
+        character_context = f"{image_in.character_name} in a scene"
+
         if conversation_id:
             # Get character ID from conversation
             result_conv = await session.execute(
                 select(Conversation).where(Conversation.id == conversation_id)
             )
             conversation = result_conv.scalars().first()
-            
+
             if conversation:
                 # Get character description
                 result_char = await session.execute(
@@ -296,14 +279,14 @@ async def generate_chat_image(
 
         # 2. Enhance Prompt
         enhanced_prompt = f"masterpiece, best quality, {character_context}, {last_msg}, anime style, detailed webtoon style illustration"
-        
+
         # 3. Generate Image
         image_bytes = await generate_image(enhanced_prompt)
-        
+
         # 4. Save Image
         filename = f"{uuid.uuid4()}.png"
         image_url = save_image_locally(image_bytes, filename)
-        
+
         # 5. Save Message to DB (if conversation exists)
         if conversation_id:
              msg = Message(
@@ -313,7 +296,7 @@ async def generate_chat_image(
              )
              session.add(msg)
              await session.commit()
-             
+
         return {"imageUrl": image_url}
 
     except Exception as e:

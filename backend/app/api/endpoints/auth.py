@@ -32,23 +32,38 @@ async def register(
         )
 
 
-    
+
     user = User(
         email=user_in.email,
         name=user_in.name,
         password=security.get_password_hash(user_in.password),
-        
+        kira_balance=100  # Initial credits
     )
     session.add(user)
     await session.commit()
     await session.refresh(user)
+
+    # Grant initial credits and log transaction
+    from app.models.credit import CreditTransaction
+    from uuid import uuid4
+
+    initial_credit_tx = CreditTransaction(
+        id=str(uuid4()),
+        user_id=user.id,
+        amount=100,
+        transaction_type="signup",
+        description="가입 축하 보너스! 첫 100 키라를 즐기세요",
+        balance_after=100
+    )
+    session.add(initial_credit_tx)
+    await session.commit()
 
     # Auto-login after register
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(
         user.id, expires_delta=access_token_expires
     )
-    
+
     response.set_cookie(
         key="access_token",
         value=access_token,
@@ -81,7 +96,7 @@ async def login(
             detail="이메일 또는 비밀번호가 일치하지 않습니다."
         )
 
-    
+
     if not security.verify_password(user_in.password, user.password):
         print(f"Login failed for {user_in.email}: Password mismatch")
         raise HTTPException(
@@ -96,7 +111,7 @@ async def login(
     access_token = security.create_access_token(
         user.id, expires_delta=access_token_expires
     )
-    
+
     # Set Cookie
     response.set_cookie(
         key="access_token",
@@ -108,7 +123,7 @@ async def login(
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
 
-    
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -146,7 +161,7 @@ from fastapi.responses import RedirectResponse
 async def google_login():
     if not settings.GOOGLE_CLIENT_ID:
         raise HTTPException(status_code=501, detail="Google OAuth not configured")
-        
+
     params = {
         "client_id": settings.GOOGLE_CLIENT_ID,
         "response_type": "code",
@@ -176,31 +191,31 @@ async def google_callback(
         "grant_type": "authorization_code",
         "redirect_uri": settings.GOOGLE_REDIRECT_URI,
     }
-    
+
     async with httpx.AsyncClient() as client:
         token_res = await client.post(token_url, data=data)
         if token_res.status_code != 200:
              raise HTTPException(status_code=400, detail="Failed to get Google token")
         token_data = token_res.json()
         access_token = token_data.get("access_token")
-        
+
         # 2. Get User Info
         user_info_res = await client.get("https://www.googleapis.com/oauth2/v3/userinfo", headers={"Authorization": f"Bearer {access_token}"})
         if user_info_res.status_code != 200:
              raise HTTPException(status_code=400, detail="Failed to get user info")
         user_info = user_info_res.json()
-        
+
     email = user_info.get("email")
     name = user_info.get("name")
     avatar = user_info.get("picture")
-    
+
     if not email:
          raise HTTPException(status_code=400, detail="Email not found in Google profile")
 
     # 3. Find or Create User
     result = await session.execute(select(User).where(User.email == email))
     user = result.scalars().first()
-    
+
     if not user:
         # Create new user
         user = User(
@@ -208,18 +223,34 @@ async def google_callback(
             name=name or "Unknown",
             password=None, # OAuth user
             avatar=avatar,
-            name_changed=False
+            name_changed=False,
+            kira_balance=100  # Initial credits
         )
         session.add(user)
         await session.commit()
         await session.refresh(user)
-    
+
+        # Grant initial credits and log transaction
+        from app.models.credit import CreditTransaction
+        from uuid import uuid4
+
+        initial_credit_tx = CreditTransaction(
+            id=str(uuid4()),
+            user_id=user.id,
+            amount=100,
+            transaction_type="signup",
+            description="가입 축하 보너스! 첫 100 키라를 즐기세요",
+            balance_after=100
+        )
+        session.add(initial_credit_tx)
+        await session.commit()
+
     # 4. Issue JWT & Redirect
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     jwt_token = security.create_access_token(
         user.id, expires_delta=access_token_expires
     )
-    
+
     # Redirect to Frontend (Root)
     # Ideally should be FRONTEND_URL from settings, but defaulting to referer or hardcoded for now
     frontend_url = "http://localhost:3003" # Default
@@ -255,7 +286,7 @@ async def update_name(
          # Frontend Logic says it warns about 1 time change, but backend should enforce it?
          # "nameChanged" field exists in model.
          pass
-         
+
     current_user.name = user_in.name
     current_user.name_changed = True
     session.add(current_user)
@@ -271,29 +302,29 @@ async def upload_avatar(
 ) -> Any:
     # Decode Base64
     try:
-        format, imgstr = user_in.imageData.split(';base64,') 
+        format, imgstr = user_in.imageData.split(';base64,')
         ext = format.split('/')[-1]
         data = base64.b64decode(imgstr)
-        
+
         # Ensure uploads dir
         os.makedirs("/app/uploads/avatars", exist_ok=True)
-        
+
         filename = f"{current_user.id}_{uuid4()}.{ext}"
         filepath = f"/app/uploads/avatars/{filename}"
-        
+
         with open(filepath, "wb") as f:
             f.write(data)
-            
+
         # Update user avatar URL
         # URL should be served by static handler
         avatar_url = f"/uploads/avatars/{filename}"
         current_user.avatar = avatar_url
-        
+
         session.add(current_user)
         await session.commit()
-        
+
         return {"avatar": avatar_url}
-        
+
     except Exception as e:
         raise HTTPException(status_code=400, detail="Invalid image data")
 

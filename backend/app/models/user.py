@@ -17,6 +17,9 @@ class User(Base):
     password: Mapped[str | None] = mapped_column(String, nullable=True) # Null for OAuth
     avatar: Mapped[str | None] = mapped_column(String, nullable=True)
     name_changed: Mapped[bool] = mapped_column("nameChanged", Boolean, default=False)
+    # Credit system
+    kira_balance: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    last_daily_credit: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # google_id removed to match existing DB
     created_at: Mapped[datetime] = mapped_column("createdAt", DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column("updatedAt", DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

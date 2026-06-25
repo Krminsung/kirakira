@@ -11,10 +11,11 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    # Expose port for host Nginx
-    ports:
-      - "3003:3003"
+    expose:
+      - "3003"
     restart: unless-stopped
+    networks:
+      - kirakira-net
 
   kirakira-backend:
     # Backend (FastAPI)
@@ -23,8 +24,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8003:8003"
+    expose:
+      - "8003"
     env_file:
       - .env
     environment:
@@ -33,7 +34,14 @@ services:
     volumes:
       - uploads_data:/app/uploads
       - ./backend:/app
+      - ./database:/app/database:ro
     restart: unless-stopped
+    networks:
+      - kirakira-net
 
 volumes:
   uploads_data:
+
+networks:
+  kirakira-net:
+    external: true
