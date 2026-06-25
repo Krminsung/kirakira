@@ -1,0 +1,198 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kirakira
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: uploads
+  namespace: kirakira
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kirakira-migrations
+  namespace: kirakira
+data:
+  001_add_credit_system.sql: |
+    -- Add credit system to kirakira database
+    -- Migration: Add Kira credit system
+
+    ALTER TABLE "User"
+    ADD COLUMN IF NOT EXISTS kira_balance INTEGER DEFAULT 100 NOT NULL,
+    ADD COLUMN IF NOT EXISTS last_daily_credit TIMESTAMP WITH TIME ZONE;
+
+    CREATE TABLE IF NOT EXISTS credit_transactions (
+        id VARCHAR PRIMARY KEY,
+        user_id VARCHAR NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+        amount INTEGER NOT NULL,
+        transaction_type VARCHAR(20) NOT NULL,
+        description TEXT,
+        balance_after INTEGER NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_credit_transactions_user_id ON credit_transactions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_credit_transactions_created_at ON credit_transactions(created_at);
+    CREATE INDEX IF NOT EXISTS idx_credit_transactions_type ON credit_transactions(transaction_type);
+
+    UPDATE "User"
+    SET kira_balance = 100
+    WHERE kira_balance IS NULL OR kira_balance = 0;
+
+    INSERT INTO credit_transactions (id, user_id, amount, transaction_type, description, balance_after, created_at)
+    SELECT
+        gen_random_uuid()::text,
+        id,
+        100,
+        'signup',
+        'Initial signup bonus',
+        100,
+        "createdAt"
+    FROM "User"
+    WHERE NOT EXISTS (
+        SELECT 1 FROM credit_transactions WHERE user_id = "User".id AND transaction_type = 'signup'
+    );
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: kirakira
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kirakira
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kirakira
+        app.kubernetes.io/component: backend
+    spec:
+      containers:
+        - name: backend
+          image: kirakira-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8003
+          envFrom:
+            - secretRef:
+                name: kirakira-env
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+            - name: migrations
+              mountPath: /app/database/migrations
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: uploads
+        - name: migrations
+          configMap:
+            name: kirakira-migrations
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: kirakira
+spec:
+  type: ClusterIP
+  clusterIP: 10.43.120.11
+  selector:
+    app.kubernetes.io/name: kirakira
+    app.kubernetes.io/component: backend
+  ports:
+    - name: http
+      port: 8003
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: kirakira
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kirakira
+      app.kubernetes.io/component: frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kirakira
+        app.kubernetes.io/component: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: kirakira-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3003
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: kirakira
+spec:
+  type: ClusterIP
+  clusterIP: 10.43.120.10
+  selector:
+    app.kubernetes.io/name: kirakira
+    app.kubernetes.io/component: frontend
+  ports:
+    - name: http
+      port: 3003
+      targetPort: http

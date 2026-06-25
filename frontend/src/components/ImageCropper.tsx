@@ -22,7 +22,7 @@ export default function ImageCropper({ imageSrc, onCancel, onCropComplete }: Ima
         setZoom(zoom);
     };
 
-    const onCropCompleteHandler = useCallback((croppedArea: any, croppedAreaPixels: any) => {
+    const onCropCompleteHandler = useCallback((_croppedArea: any, croppedAreaPixels: any) => {
         setCroppedAreaPixels(croppedAreaPixels);
     }, []);
 

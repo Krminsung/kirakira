@@ -6,11 +6,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    environment:
-      - CHOKIDAR_USEPOLLING=true
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     expose:
       - "3003"
     restart: unless-stopped
@@ -29,11 +24,10 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://kirakira:kirakira123@172.20.0.1:5432/kirakira
+      - DATABASE_URL=postgresql://kirakira:kirakira123@192.168.0.1:5432/kirakira
       - FRONTEND_URL=https://kirakira.cukee.world
     volumes:
       - uploads_data:/app/uploads
-      - ./backend:/app
       - ./database:/app/database:ro
     restart: unless-stopped
     networks:
